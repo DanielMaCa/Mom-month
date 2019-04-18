@@ -1,0 +1,92 @@
+import pandas as pd
+import numpy as np
+import matplotlib as mat 
+%matplotlib inline
+import matplotlib.pyplot as plt
+from pandas.tseries.offsets import *
+from scipy import stats
+from datetime import datetime, date, time, timedelta
+
+#ersetze in RET C und B mit nan
+missing_values=["C","B","."]
+
+crsp_m = pd.read_csv("./Data/Stockreturn_monthly_1960-2018.csv",na_values=missing_values)
+#crsp_m = pd.read_csv("./Data/SIC CODE BANK.csv",na_values=missing_values)
+
+crsp_m['date']=[datetime.strptime(str(date), "%Y%m%d")
+for date in crsp_m['date']]
+
+print(crsp_m.shape)
+
+crsp_m.head()
+
+crsp_m[['PERMNO','SHRCD','EXCHCD']] = crsp_m[['PERMNO', 'SHRCD','EXCHCD']].astype(int)
+
+crsp_m['RET']=crsp_m['RET'].fillna(0)
+
+crsp_m['logret']=np.log(1+crsp_m['RET'])
+
+crsp_m['logret+1']=crsp_m['logret']+1
+
+crsp_m['MktV'] = crsp_m['SHRCD']*crsp_m['PRC']
+
+#print (crsp_m)
+
+#crsp_m.pivot(index='date',columns='PERMNO')
+
+#piv1=crsp_m.pivot(index='date',columns='PERMNO',values= ['logret','MktV'])
+
+pivm=crsp_m.pivot(index='date',columns='PERMNO',values= ['logret'])
+#print(pivm)
+
+CR_df = pivm
+CR_df_columns = pivm.columns
+CR_df_index = pivm.index.to_series()
+CR_df = pd.DataFrame(index=CR_df_index, dtype=float, columns=CR_df_columns)
+
+for i in range(len(CR_df_index)):
+
+    for j in range(len(CR_df_columns)):
+        if np.sum(pivm.iloc[i-13:i,j].isna()) > 0:
+            continue
+        else:
+            CR_df.iloc[i,j] = np.sum(pivm.iloc[i-13:i-2,j])
+            
+print (CR_df)
+#CR_df.to_csv(r'CR_df.csv')
+
+PT_df = CR_df.quantile([0.1, 0.9], axis=1).transpose()
+PT_df.columns = ['Percentile 10', 'Percentile 90']
+
+AC_df_columns = CR_df.columns
+AC_df_index = CR_df.index.to_series()
+
+AC_df0 = pd.DataFrame(index=AC_df_index, dtype=int, columns=AC_df_columns)
+AC_df1 = pd.DataFrame(index=AC_df_index, dtype=int, columns=AC_df_columns)
+AC_df2 = pd.DataFrame(index=AC_df_index, dtype=int, columns=AC_df_columns)
+
+for i in range(len(AC_df_index)):
+
+    for j in range(len(AC_df_columns)):
+        if CR_df.iloc[i, j] <= PT_df.iloc[i, 0]:
+             AC_df0.iloc[i, j] = True
+
+        elif CR_df.iloc[i, j] <= PT_df.iloc[i, 1]:
+             AC_df1.iloc[i, j] = True
+
+        elif CR_df.iloc[i, j] > PT_df.iloc[i, 1]:
+             AC_df2.iloc[i, j] = True
+
+        else:
+             continue
+
+AC_df0.fillna(value=False)
+AC_df1.fillna(value=False)
+AC_df2.fillna(value=False)
+
+# Descriptive Information of created Allocation0 DataFrame
+#print(AC_df0.info())
+#print(AC_df0.head(7))
+#print(AC_df0.tail(7))
+#print(AC_df0.shape)
+
